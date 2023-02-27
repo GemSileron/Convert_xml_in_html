@@ -30,14 +30,8 @@ import java.lang.String;
 </root>
 */
 
-
-//array rowscConstructor
-def String arrayRowsTemplate (String columnOne, String columnTwo, String columnThree, String columnFour,  String columnFive) {
-    return "<tr><td>"+columnOne+"</td><td>"+columnTwo+"</td><td>"+columnThree+"</td><td>"+columnFour+"</td><td>"+columnFive+"</td></tr>";
-}
-
 //date formating -- (format source : 2023-02-21T10:34:11)
-def String FormatDate(String currentDate, String formatedDate){
+def String FormatDate(String currentDate, String initDate){
     def datePattern = "yyyy-MM-dd";
     def dateString = currentDate.substring(0,10);
     def Date dateConverted = Date.parse(datePattern, dateString);
@@ -47,39 +41,50 @@ def String FormatDate(String currentDate, String formatedDate){
         month = "0"+month
     }
     def day = dateConverted.getDate();
-    return formatedDate = day+"/"+ month +"/"+year+" - "+ currentDate.substring(11,13)+"h"+ currentDate.substring(14,16)+"min";
+    return initDate = day+"/"+ month +"/"+year+" - "+ currentDate.substring(11,13)+"h"+ currentDate.substring(14,16)+"min";
 }
 
-
-def Message processData(Message message) {
+def Message processData(Message message){
 
     //get and parse payload
     def body = message.getBody(java.lang.String) as String;
+
     def parseBody = new XmlSlurper().parseText(body);
 
     //get headers values
     def headers = message.getHeaders();
     def idSite = headers.get("idSite");
     def currentDate = headers.get("currentDate");
-    def arrayColumnNumber = headers.get("array_column_number");
-    def arrayColumnName1 = headers.get("array_column_1_name");
-    def arrayColumnName2 = headers.get("array_column_2_name");
-    def arrayColumnName3 = headers.get("array_column_3_name");
-    def arrayColumnName4 = headers.get("array_column_4_name");
-    def arrayColumnName5 = headers.get("array_column_5_name");
 
     //create custom const
+    def arrayHeader = '';
+    def arrayBodyHtml ='';
+    def arrayBodyRows = '';
+    def numberColumn = 0;
     def concatTemplateBody = '';
-    def formatedDate = '';
+    def initDate = '';
     def arrayInMail = parseBody.ParentNode.Childs;
-    def arrayTitle = "Relevés de stocks au $formatedDate";
 
     //formating date
-    formatedDate = FormatDate(currentDate,formatedDate);
+    formatedDate = FormatDate(currentDate,initDate);
 
-    //construct array
-    arrayInMail.each { it ->
-        concatTemplateBody = concatTemplateBody + arrayRowsTemplate(it.ItemId.toString(), it.ItemDescription.toString(), it.Quantity2.toString(), it.Quantity1.toString(), it.QuantityDifference.toString());
+    //construc arrayTitle
+    def arrayTitle = "Relevés de stocks au $formatedDate sur le site $idSite";
+
+    //construc arrayHeader
+    arrayInMail[0].each{it -> 
+    it.children().each { child ->
+    arrayHeader = arrayHeader + "<th>"+child.name()+"</th>"
+    numberColumn++;
+    }}
+
+    //construct arrayBody
+    arrayInMail.each{it -> 
+    it.children().each { child ->
+    arrayBodyRows = arrayBodyRows + "<td>"+child.text()+"</td>"
+    }
+    arrayBodyHtml = arrayBodyHtml + "<tr>"+arrayBodyRows+"</tr>";
+    arrayBodyRows = '';
     }
 
     //construct mail body
@@ -87,18 +92,14 @@ def Message processData(Message message) {
     <table width="80%" border="1" align="center" border-collapse="collapse">
         <thead>
             <tr>
-                <th bgcolor="#add8e6" colspan="$arrayColumnNumber">$arrayTitle</th>  
+                <th bgcolor="#add8e6" colspan="$numberColumn">$arrayTitle</th>  
             </tr>
             <tr>
-                <th bgcolor="#add8e6">$arrayColumnName1</th>
-                <th bgcolor="#add8e6">$arrayColumnName2</th>
-                <th bgcolor="#add8e6">$arrayColumnName3</th>
-                <th bgcolor="#add8e6">$arrayColumnName4</th>
-                <th bgcolor="#add8e6">$arrayColumnName5</th>
+                $arrayHeader  
             </tr>
         </thead>
         <tbody align="center">
-           $concatTemplateBody
+            $arrayBodyHtml
         </tbody>
     </table>""";
 
